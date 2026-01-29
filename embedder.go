@@ -1,114 +1,245 @@
 package brain
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"math"
-	"net/http"
 	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
 )
 
-// Embedder interface for generating embeddings
-type Embedder interface {
-	Embed(text string) ([]float32, error)
+type Note struct {
+	ID        string    `json:"id"`
+	Content   string    `json:"content"`
+	Tags      []string  `json:"tags"`
+	Project   string    `json:"project,omitempty"`
+	Timestamp time.Time `json:"timestamp"`
+	Embedding []float32 `json:"-"` // Don't serialize, computed on demand
 }
 
-// OpenAIEmbedder uses OpenAI's API for embeddings
-type OpenAIEmbedder struct {
-	apiKey string
-	model  string
+type SearchResult struct {
+	Note       *Note
+	Similarity float64
 }
 
-func NewOpenAIEmbedder() (*OpenAIEmbedder, error) {
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return nil, fmt.Errorf("OPENAI_API_KEY not set")
-	}
-
-	return &OpenAIEmbedder{
-		apiKey: apiKey,
-		model:  "text-embedding-3-small", // Cheaper and faster
-	}, nil
+type Context struct {
+	Directory   string
+	Project     string
+	Description string
+	Keywords    []string
 }
 
-func (e *OpenAIEmbedder) Embed(text string) ([]float32, error) {
-	reqBody := map[string]interface{}{
-		"input": text,
-		"model": e.model,
-	}
+type Brain struct {
+	dataDir    string
+	notesPath  string
+	embedder   Embedder
+	vectorStore VectorStore
+}
 
-	jsonData, err := json.Marshal(reqBody)
+// New creates a new Brain instance
+func New() (*Brain, error) {
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("POST", "https://api.openai.com/v1/embeddings", bytes.NewBuffer(jsonData))
+	dataDir := filepath.Join(homeDir, ".brain")
+	notesPath := filepath.Join(dataDir, "notes.json")
+
+	// Create data directory if it doesn't exist
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		return nil, err
+	}
+
+	// Initialize embedder (using OpenAI by default, can be configured)
+	embedder, err := NewOpenAIEmbedder()
+	if err != nil {
+		// Fall back to local embedder if OpenAI fails
+		embedder = NewLocalEmbedder()
+	}
+
+	// Initialize vector store
+	vectorStore, err := NewSimpleVectorStore(dataDir)
 	if err != nil {
 		return nil, err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+e.apiKey)
+	b := &Brain{
+		dataDir:     dataDir,
+		notesPath:   notesPath,
+		embedder:    embedder,
+		vectorStore: vectorStore,
+	}
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	// Load existing notes into vector store
+	if err := b.loadNotes(); err != nil {
+		return nil, err
+	}
+
+	return b, nil
+}
+
+func (b *Brain) AddNote(note *Note) error {
+	// Generate ID if not set
+	if note.ID == "" {
+		note.ID = uuid.New().String()
+	}
+
+	// Generate embedding
+	embedding, err := b.embedder.Embed(note.Content)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("failed to generate embedding: %w", err)
 	}
-	defer resp.Body.Close()
+	note.Embedding = embedding
 
-	var result struct {
-		Data []struct {
-			Embedding []float32 `json:"embedding"`
-		} `json:"data"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
+	// Add to vector store
+	if err := b.vectorStore.Add(note); err != nil {
+		return err
 	}
 
-	if len(result.Data) == 0 {
-		return nil, fmt.Errorf("no embedding returned")
-	}
-
-	return result.Data[0].Embedding, nil
+	// Save to disk
+	return b.saveNotes()
 }
 
-// LocalEmbedder is a simple fallback that uses basic text features
-// In a real implementation, you'd use sentence-transformers or similar
-type LocalEmbedder struct{}
+func (b *Brain) Search(query string, limit int, tags []string) ([]SearchResult, error) {
+	// Generate embedding for query
+	embedding, err := b.embedder.Embed(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate query embedding: %w", err)
+	}
 
-func NewLocalEmbedder() *LocalEmbedder {
-	return &LocalEmbedder{}
+	// Search vector store
+	return b.vectorStore.Search(embedding, limit, tags)
 }
 
-// Simple bag-of-words style embedding (just for demonstration)
-// In production, you'd want to use a proper model
-func (e *LocalEmbedder) Embed(text string) ([]float32, error) {
-	// This is a very naive implementation
-	// You'd want to use a proper embedding model here
-	// For now, just create a simple hash-based vector
-	
-	embedding := make([]float32, 384) // Standard size
-	
-	// Simple character-based hashing (not good, but works as fallback)
-	for i, char := range text {
-		idx := int(char) % len(embedding)
-		embedding[idx] += float32(i+1) / float32(len(text))
+func (b *Brain) GetContextualNotes(ctx interface{}) ([]SearchResult, error) {
+	// Type assert to get our Context struct
+	context, ok := ctx.(Context)
+	if !ok {
+		// Fallback if wrong type
+		return b.Search("context", 5, nil)
 	}
+
+	// Build a query from context information
+	queryParts := []string{context.Project, context.Description}
+	queryParts = append(queryParts, context.Keywords...)
 	
-	// Normalize (L2 normalization for cosine similarity)
-	var sum float32
-	for _, val := range embedding {
-		sum += val * val
-	}
-	if sum > 0 {
-		norm := float32(1.0) / float32(math.Sqrt(float64(sum)))
-		for i := range embedding {
-			embedding[i] *= norm
+	// Filter out empty strings
+	var validParts []string
+	for _, part := range queryParts {
+		if part != "" {
+			validParts = append(validParts, part)
 		}
 	}
 	
-	return embedding, nil
+	if len(validParts) == 0 {
+		return []SearchResult{}, nil
+	}
+	
+	// Join all parts into a single query string
+	query := strings.Join(validParts, " ")
+	
+	// Search with the constructed query
+	results, err := b.Search(query, 5, nil)
+	if err != nil {
+		return nil, err
+	}
+	
+	// If we have a project name, boost results that match it
+	if context.Project != "" {
+		for i := range results {
+			if results[i].Note.Project == context.Project {
+				results[i].Similarity *= 1.2 // 20% boost for same project
+				if results[i].Similarity > 1.0 {
+					results[i].Similarity = 1.0 // Cap at 1.0
+				}
+			}
+		}
+		
+		// Re-sort after boosting
+		sort.Slice(results, func(i, j int) bool {
+			return results[i].Similarity > results[j].Similarity
+		})
+	}
+	
+	return results, nil
+}
+
+func (b *Brain) ListNotes(tags []string) ([]*Note, error) {
+	allNotes := b.vectorStore.GetAllNotes()
+	
+	if len(tags) == 0 {
+		return allNotes, nil
+	}
+	
+	// Filter by tags (use the hasAnyTag function from vectorstore)
+	var filtered []*Note
+	for _, note := range allNotes {
+		for _, filterTag := range tags {
+			hasTag := false
+			for _, noteTag := range note.Tags {
+				if noteTag == filterTag {
+					hasTag = true
+					break
+				}
+			}
+			if hasTag {
+				filtered = append(filtered, note)
+				break
+			}
+		}
+	}
+	
+	return filtered, nil
+}
+
+func (b *Brain) loadNotes() error {
+	// Check if notes file exists
+	if _, err := os.Stat(b.notesPath); os.IsNotExist(err) {
+		return nil // No notes yet, that's fine
+	}
+
+	data, err := os.ReadFile(b.notesPath)
+	if err != nil {
+		return err
+	}
+
+	var notes []*Note
+	if err := json.Unmarshal(data, &notes); err != nil {
+		return err
+	}
+
+	// Clear the vector store first to avoid duplicates
+	b.vectorStore = &SimpleVectorStore{notes: make([]*Note, 0)}
+
+	// Load each note into vector store
+	for _, note := range notes {
+		// Generate embedding if not present
+		if len(note.Embedding) == 0 {
+			embedding, err := b.embedder.Embed(note.Content)
+			if err != nil {
+				continue // Skip notes we can't embed
+			}
+			note.Embedding = embedding
+		}
+		
+		b.vectorStore.Add(note)
+	}
+
+	return nil
+}
+
+func (b *Brain) saveNotes() error {
+	notes := b.vectorStore.GetAllNotes()
+	
+	data, err := json.MarshalIndent(notes, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(b.notesPath, data, 0644)
 }
