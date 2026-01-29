@@ -1,0 +1,57 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.21'
+
+    - name: Run tests
+      run: go test -v ./...
+
+    - name: Build binaries
+      run: |
+        # Linux
+        GOOS=linux GOARCH=amd64 go build -o brain-linux-amd64 .
+        GOOS=linux GOARCH=arm64 go build -o brain-linux-arm64 .
+        
+        # macOS
+        GOOS=darwin GOARCH=amd64 go build -o brain-darwin-amd64 .
+        GOOS=darwin GOARCH=arm64 go build -o brain-darwin-arm64 .
+        
+        # Windows
+        GOOS=windows GOARCH=amd64 go build -o brain-windows-amd64.exe .
+        
+        # Create archives
+        tar czf brain-linux-amd64.tar.gz brain-linux-amd64
+        tar czf brain-linux-arm64.tar.gz brain-linux-arm64
+        tar czf brain-darwin-amd64.tar.gz brain-darwin-amd64
+        tar czf brain-darwin-arm64.tar.gz brain-darwin-arm64
+        zip brain-windows-amd64.zip brain-windows-amd64.exe
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          brain-linux-amd64.tar.gz
+          brain-linux-arm64.tar.gz
+          brain-darwin-amd64.tar.gz
+          brain-darwin-arm64.tar.gz
+          brain-windows-amd64.zip
+        generate_release_notes: true
