@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"os"
 )
@@ -97,13 +98,13 @@ func (e *LocalEmbedder) Embed(text string) ([]float32, error) {
 		embedding[idx] += float32(i+1) / float32(len(text))
 	}
 	
-	// Normalize
+	// Normalize (L2 normalization for cosine similarity)
 	var sum float32
 	for _, val := range embedding {
 		sum += val * val
 	}
 	if sum > 0 {
-		norm := float32(1.0) / float32(sum)
+		norm := float32(1.0) / float32(math.Sqrt(float64(sum)))
 		for i := range embedding {
 			embedding[i] *= norm
 		}
