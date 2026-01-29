@@ -1,4 +1,4 @@
-# 🧠 Brain CLI
+#  Brain CLI
 
 A second brain for developers. Save your ideas, learnings, and insights, then surface them exactly when you need them using semantic search and context awareness.
 
@@ -8,12 +8,12 @@ Ever had that "I know I learned this before..." moment? Brain remembers for you.
 
 ### Features
 
-- 🔍 **Semantic Search**: Find notes by meaning, not just keywords
-- 📍 **Context Awareness**: Get relevant notes based on your current project/directory
-- 🏷️ **Smart Tagging**: Organize with tags and projects
-- ⚡ **Lightning Fast**: Built in Go, instant responses
-- 🔒 **Local First**: Your data stays on your machine
-- 🤖 **AI-Powered**: Uses embeddings for intelligent search (OpenAI or local fallback)
+-  **Semantic Search**: Find notes by meaning, not just keywords
+-  **Context Awareness**: Get relevant notes based on your current project/directory
+-  **Smart Tagging**: Organize with tags and projects
+-  **Lightning Fast**: Built in Go, instant responses
+-  **Local First**: Your data stays on your machine
+-  **AI-Powered**: Uses embeddings for intelligent search (OpenAI or local fallback)
 
 ## Installation
 
@@ -146,14 +146,14 @@ brain context
 
 ## Roadmap
 
-- [ ] Interactive `brain ask` command (chat with your notes)
-- [ ] Auto-tagging with LLMs
-- [ ] Export to Markdown/Obsidian
-- [ ] Sync between machines
-- [ ] Browser extension for saving web insights
-- [ ] Integration with IDE (VS Code extension)
-- [ ] Link detection between related notes
-- [ ] Spaced repetition reminders
+-  Interactive `brain ask` command (chat with your notes)
+-  Auto-tagging with LLMs
+-  Export to Markdown/Obsidian
+-  Sync between machines
+-  Browser extension for saving web insights
+-  Integration with IDE (VS Code extension)
+-  Link detection between related notes
+-  Spaced repetition reminders
 
 ## Contributing
 
