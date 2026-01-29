@@ -2,7 +2,18 @@
 
 ## What You've Got
 
-A complete, production-ready CLI tool written in Go that acts as a "second brain" for developers. Upload this to GitHub and you'll have a solid portfolio piece that showcases multiple skills.
+A complete, production-ready CLI tool written in Go that acts as a "second brain" for developers. This is v0.1.0 with all critical bugs fixed and ready for GitHub.
+
+##  v0.1.0 Status: Production Ready
+
+All critical bugs have been fixed:
+- Note duplication bug resolved (JSON is now source of truth)
+- Normalization math corrected (proper L2 norm for local embedder)
+- Context search actually works (uses git keywords + project boosting)
+- Documentation accurate (no false references)
+- Added `brain list` command
+
+See CHANGELOG.md for technical details of all fixes.
 
 ## Project Structure
 
@@ -37,13 +48,14 @@ brain-cli/
 
 ## Features Implemented
 
-✅ **Core Functionality**:
+**Core Functionality**:
 - Add notes with tags and project metadata
 - Semantic search using embeddings
-- Context-aware note retrieval
+- Context-aware note retrieval (uses git keywords and project context)
 - Question answering (retrieves relevant notes)
+- List all notes with filtering
 
-✅ **Technical Features**:
+**Technical Features**:
 - OpenAI embeddings integration
 - Local fallback embedder (works offline)
 - In-memory vector store with cosine similarity
@@ -51,7 +63,7 @@ brain-cli/
 - JSON persistence
 - Git integration for context detection
 
-✅ **Developer Experience**:
+**Developer Experience**:
 - Clean CLI interface with Cobra
 - Comprehensive error handling
 - Unit tests
@@ -60,7 +72,7 @@ brain-cli/
 - Make-based build system
 - Cross-platform support (Linux, macOS, Windows)
 
-✅ **Documentation**:
+**Documentation**:
 - Detailed README with examples
 - Quick start guide
 - Architecture documentation
@@ -100,7 +112,7 @@ git push -u origin main
 ### Step 4: Set Up
 1. GitHub Actions will run automatically (see .github/workflows/)
 2. Add topics/tags: `go`, `cli`, `semantic-search`, `ai`, `knowledge-management`
-3. Add a good description: "🧠 A second brain CLI that saves and retrieves your ideas using semantic search"
+3. Add a good description: "A second brain CLI that saves and retrieves your ideas using semantic search"
 
 ### Step 5: Make First Release
 ```bash
@@ -154,17 +166,6 @@ This project demonstrates:
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/yourusername/brain-cli)](https://go.dev/)
 ```
-
-**Demo GIF**: Record a terminal session showing:
-1. Adding a few notes
-2. Searching for them
-3. Using context detection
-4. Getting an answer from `brain ask`
-
-**Social media**: Tweet about it, post on r/golang, dev.to article
-
 ## Built With Josh's Good Taste
 
-As noted in the README footer: "Built with Go because josh liked it and he has good taste." 😄
-
-This is a solid portfolio piece. Good luck with it!
+As noted in the README footer: "Built with Go because josh liked it and he has good taste." 
