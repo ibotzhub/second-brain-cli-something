@@ -54,17 +54,10 @@ to surface relevant notes from your brain.`,
 	},
 }
 
-type Context struct {
-	Directory   string
-	Project     string
-	Description string
-	Keywords    []string
-}
-
-func detectContext() Context {
+func detectContext() brain.Context {
 	cwd, _ := os.Getwd()
 	
-	ctx := Context{
+	ctx := brain.Context{
 		Directory:   cwd,
 		Description: filepath.Base(cwd),
 		Keywords:    []string{},
